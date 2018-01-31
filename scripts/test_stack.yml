@@ -1,0 +1,20 @@
+// this file name will be the stack name.
+// resouce names have a BUILD_ID token to force publishing of a new version for
+// every code update.
+// ENV token is used in case we need to support multiple environments in one
+// account. 
+
+Description: Some description
+
+Parameters:
+  Env:
+    Default: DEV
+    Description: env description
+    Type: String
+  BuildId:
+    Default: ''
+    Description: buildid used when staging file
+    Type: String
+  S3Bucket:
+    Default: ''
+    Type: String
