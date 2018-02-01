@@ -18,3 +18,73 @@ Parameters:
   S3Bucket:
     Default: ''
     Type: String
+
+Mappings:
+  Environments:
+    COMMON:
+      MemorySize: 128
+      Runtime: nodejs6.10
+      Timeout: 10
+    DEV:
+      S3Bucket: <REPLACE_ME>
+      ExecutionRole: <REPLACE_ME>
+      SecurityGroupIds: [REPLACE_ME]
+      SubnetIds: [REPLACE_ME]
+      LogLevel: Debug
+
+Resources:
+  # function
+  TestLambdaFunction%ENV%:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !FindInMap [Environments, !Ref Env, S3Bucket]
+        S3Key: <REPLACE_ME>
+      Description: <DESCRIBE_ME>
+      Environment:
+        Variables:
+          LOG_LEVEL: !FindInMap [Environment, !Ref Env, LogLevel]
+      FunctionName: Test-LambdaFunction-%ENV%
+      Handler: test_lambda.handler
+      MemorySize: !FindInMap [Environments, 'COMMON', MemorySize]
+      Role: !FindInMap [Environments, !Ref Env, ExecutionRole]
+      Runtime: !FindInMap [Environments, 'COMMON', Runtime]
+      Timeout: !FindInMap [Environments, 'COMMON', Timeout]
+      VpcConfig:
+        SecurityGroupIds: !FindInMap [Environments, !Ref Env, SecurityGroupIds]
+        SubnetIds: !FindInMap [Environments, !Ref Env, SubnetIds]
+
+  # version
+  TestLambdaFunctionVersion%ENV%%BUILD_ID%:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref TestLambdaFunction%ENV%
+
+  # alias
+  TestLambdaFunctionAlias%ENV%:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref TestLambdaFunction%ENV%
+      FunctionVersion: !GetAtt TestLambdaFunctionVersion%ENV%%BUILD_ID%.Version
+      Name: TestLambdaFunctionAlias-%ENV%
+
+  # enable this lambda to be invoked by an event
+  TestLambdaFunction%ENV%InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref TestLambdaFunctionAlias%ENV%
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TestLambdaFunctionTrigger%ENV%.Arn
+
+  # setup cloudwatch rule to invoke lambda
+  TestLambdaFunctionTrigger%ENV%:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: <DESCRIBE_ME>
+      Name: Test-LambdaFunction-%ENV%
+      ScheduleExpression: rate(5 minutes)
+      Targets:
+        -
+          Id: %BUILD_ID%
+          Arn: !Ref TestLambdaFunctionAlias%ENV%
